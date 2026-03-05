@@ -49,14 +49,40 @@ def product_name_map = [
     'wso2am-universal-gw': 'apim-universal-gw',
 ]
 
+def installDocker() {
+if (!fileExists('/usr/bin/docker')) {
+        println "Docker not found. Installing..."
+        sh """
+            sudo apt update
+            sudo apt install apt-transport-https ca-certificates curl software-properties-common -y
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+            sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable"
+            
+            sudo apt install docker-ce -y
+            
+            sudo usermod -aG docker ${USER}
+            su - ${USER}
+        """
+    } else {
+        println "Docker is already installed."
+    }
+}
+
 pipeline {
-    agent {label 'pipeline-kubernetes-agent'}
+    agent {label 'pipeline-agent'}
 
     environment {
         WSO2_UPDATES_UPDATE_LEVEL_STATE = "VERIFYING"
     }
 
     stages {
+        stage('Setup Docker') {
+            steps {
+                script {
+                    installDocker()
+                }
+            }
+        }
         stage('Clone repos') {
             steps {
                 script {

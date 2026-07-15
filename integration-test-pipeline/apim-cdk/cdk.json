@@ -1,0 +1,8 @@
+{
+  "app": "python3 app.py",
+  "context": {
+    "ec2InstanceCount": 2,
+    "dbChoices": ["MySQL-8.0", "SQLServer-SE-16.00", "Postgres-18.0", "Oracle-SE2-19.0"],
+    "operatingSystem": "Ubuntu"
+  }
+}

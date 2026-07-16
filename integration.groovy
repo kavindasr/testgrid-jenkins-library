@@ -21,6 +21,7 @@ import hudson.model.*
 
 def deploymentDirectories = []
 def updateType = ""
+def testGroupList = []
 
 pipeline {
 agent {label 'pipeline-agent'}
@@ -52,6 +53,11 @@ stages {
     stage('Constructing parameter files'){
         steps {
             script {
+                // Each selected test group gets its own EC2 in the v2 CFN stack. An empty
+                // test_groups means "run all four groups". The same list drives both the CFN
+                // InstanceNames parameter and the parallel test stages later on.
+                testGroupList = (test_groups?.trim()) ? test_groups.split(",").collect{ it.trim() }.findAll{ it } : ["group1", "group2", "group3", "group4"]
+                println "Test groups -> one EC2 per group: ${testGroupList}"
                 withCredentials([string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'accessKey'),
                 string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'secretAccessKey'),
                 string(credentialsId: 'WUM_USERNAME', variable: 'wumUserName'),
@@ -117,6 +123,8 @@ stages {
                     ./scripts/write-parameter-file.sh "SurefireReportDir" ${surefire_report_dir} "${WORKSPACE}/parameters/parameters.json"
                     echo "Writting product download location"
                     ./scripts/write-parameter-file.sh "ProductPackLocation" ${product_pack_location} "${WORKSPACE}/parameters/parameters.json"
+                    echo "Writting instance names (one EC2 per selected test group) to parameter file"
+                    ./scripts/write-parameter-file.sh "InstanceNames" "'''+testGroupList.join(",")+'''" "${WORKSPACE}/parameters/parameters.json"
                     echo "Writing to parameter file completed!"
                     echo --- Preparing parameter files for deployments! ---
                     ./scripts/deployment-builder.sh ${product} ${product_version} '''+updateType+'''
@@ -139,7 +147,7 @@ stages {
                 def build_jobs = [:]
                 for (deploymentDirectory in deploymentDirectories){
                     println deploymentDirectory
-                    build_jobs["${deploymentDirectory}"] = create_build_jobs(deploymentDirectory)
+                    build_jobs["${deploymentDirectory}"] = create_build_jobs(deploymentDirectory, testGroupList)
                 }
 
                 parallel build_jobs
@@ -160,32 +168,38 @@ post {
 }
 }
 
-def create_build_jobs(deploymentDirectory){
+def create_build_jobs(deploymentDirectory, groupList){
     return{
         stage("${deploymentDirectory}"){
+            // Deploy the v2 CFN stack once. It provisions one EC2 per test group
+            // (plus the shared RDS), so all group branches below share this stack.
             stage("Deploy ${deploymentDirectory}") {
                 println "Deploying Stack:- ${deploymentDirectory}..."
                 sh'''
-                    ./scripts/deployment-handler.sh '''+deploymentDirectory+''' ${WORKSPACE}/${cloudformation_location} 
+                    ./scripts/deployment-handler.sh '''+deploymentDirectory+''' ${WORKSPACE}/${cloudformation_location}
                 '''
-                stage("Testing ${deploymentDirectory}") {
-                    println "Deployment Integration testing..."
-                    script {
-                        if (test_groups != "") {
-                            def testGroups = test_groups.split(",")
-                                println "Test Groups ${testGroups}"
-                                for (productTestGroup in testGroups) {
-                                    println "Deploying Test for ${productTestGroup} for $deploymentDirectory"
-                                    executeTests(deploymentDirectory, productTestGroup)
-                                }
-                        } else {
-                            println "Deploying Test for $deploymentDirectory"
-                            sh '''
-                                 echo
-                                 ./scripts/intg-test-deployment.sh ''' + deploymentDirectory + ''' ${product_repository} ${product_test_branch} ${product_test_script}
-                            '''
-                        }
+            }
+            try {
+                // Run every selected test group in parallel, each on its own EC2.
+                def group_jobs = [:]
+                for (g in groupList) {
+                    def productTestGroup = g
+                    group_jobs["Testing ${deploymentDirectory} with ${productTestGroup}"] = {
+                        executeTests(deploymentDirectory, productTestGroup)
                     }
+                }
+                stage("Testing ${deploymentDirectory}") {
+                    println "Running ${group_jobs.size()} test group(s) in parallel for ${deploymentDirectory}..."
+                    parallel group_jobs
+                }
+            } finally {
+                // Tear the stack down exactly once, only after every group branch has
+                // finished (whether they passed or failed).
+                stage("Teardown ${deploymentDirectory}") {
+                    println "Deleting stack for ${deploymentDirectory}..."
+                    sh'''
+                        ./scripts/post-actions.sh '''+deploymentDirectory+'''
+                    '''
                 }
             }
         }

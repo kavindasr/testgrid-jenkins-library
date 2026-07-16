@@ -27,7 +27,16 @@ INPUTS_DIR=$1
 OUTPUTS_DIR=$2
 productTestGroup=$3
 PROP_FILE="${INPUTS_DIR}/deployment.properties"
-WSO2InstanceName=$(grep -w "WSO2InstanceName" ${PROP_FILE} | cut -d'=' -f2 | cut -d"/" -f3)
+# In the parallel (v2) flow each test group runs on its own EC2, and the CFN
+# stack exports the instance DNS name keyed by group (e.g. WSO2InstanceNamegroup1).
+# Pick this group's instance; fall back to the unsuffixed key when no group is given.
+instanceNameKey="WSO2InstanceName${productTestGroup}"
+WSO2InstanceName=$(grep -w "${instanceNameKey}" ${PROP_FILE} | cut -d'=' -f2 | cut -d"/" -f3)
+# Per-group DB naming shared by provision_db_<product>.sh and the infra.json datasource
+# URLs, so every group gets its own logical databases on the shared RDS.
+GROUP_UPPER=$(echo "${productTestGroup}" | tr '[:lower:]' '[:upper:]')   # e.g. GROUP1
+GROUP_NUM=$(echo "${productTestGroup}" | tr -cd '0-9')                    # e.g. 1  (DB2 token)
+DB_SUFFIX="${GROUP_UPPER:+_${GROUP_UPPER}}"                               # e.g. _GROUP1
 OperatingSystem=$(grep -w "OperatingSystem" ${PROP_FILE} | cut -d'=' -f2)
 PRODUCT_VERSION=$(grep -w "ProductVersion" ${PROP_FILE}| cut -d'=' -f2)
 PRODUCT_NAME=$(grep -w "Product" ${PROP_FILE}| cut -d'=' -f2 | cut -d'-' -f1)
@@ -38,7 +47,7 @@ PRODUCT_GIT_BRANCH=$(grep -w "ProductTestBranch" ${PROP_FILE} | cut -d'=' -f2)
 GIT_USER=$(grep -w "GithubUserName" ${PROP_FILE} | cut -d'=' -f2)
 GIT_PASS=$(grep -w "GithubPassword" ${PROP_FILE} | cut -d'=' -f2)
 PRODUCT_GIT_REPO_NAME=$(grep -w "ProductRepository" ${PROP_FILE} | rev | cut -d'/' -f1 | rev | cut -d'.' -f1)
-keyFileLocation="${INPUTS_DIR}/testgrid-key.pem"
+keyFileLocation="${INPUTS_DIR}/testgrid-key-${productTestGroup}.pem"
 SCRIPT_LOCATION=$(grep -w "ProductTestScriptLocation" ${PROP_FILE} | cut -d'=' -f2)
 TEST_SCRIPT_NAME=$(echo $SCRIPT_LOCATION | rev | cut -d'/' -f1 | rev)
 TEST_REPORTS_DIR="$(grep -w "SurefireReportDir" ${PROP_FILE} | cut -d'=' -f2 )"
@@ -68,14 +77,23 @@ chmod 400 ${keyFileLocation}
 log_info "Copying ${TEST_SCRIPT_NAME} to remote ec2 instance"
 scp -v -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ${keyFileLocation} ${TEST_SCRIPT_NAME} $instanceUser@${WSO2InstanceName}:/opt/testgrid/workspace/${TEST_SCRIPT_NAME}
 
-log_info "Copying ${INFRA_JSON} to remote ec2 instance"
-scp -v -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ${keyFileLocation} ${INFRA_JSON} $instanceUser@${WSO2InstanceName}:/opt/testgrid/workspace/infra.json
+# Resolve the per-group DB-name placeholders in infra.json (only the physical DB name in
+# each JDBC URL / Oracle username carries a placeholder; the ".name" lookup keys are left
+# intact so run-int-test.sh still finds the datasources). Empty group => placeholders removed.
+GROUP_INFRA_JSON="${OUTPUTS_DIR}/infra.json"
+mkdir -p "${OUTPUTS_DIR}"
+sed -e "s/_CF_GROUP/${DB_SUFFIX}/g" \
+    -e "s/_CF_GD/${GROUP_NUM:+_G${GROUP_NUM}}/g" \
+    "${INFRA_JSON}" > "${GROUP_INFRA_JSON}"
+
+log_info "Copying ${GROUP_INFRA_JSON} to remote ec2 instance"
+scp -v -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ${keyFileLocation} ${GROUP_INFRA_JSON} $instanceUser@${WSO2InstanceName}:/opt/testgrid/workspace/infra.json
 
 log_info "Executing /opt/testgrid/workspace/wso2-update.sh on remote Instance"
 ssh -v -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ${keyFileLocation} $instanceUser@${WSO2InstanceName} "cd /opt/testgrid/workspace && sudo bash /opt/testgrid/workspace/wso2-update.sh" "'$WUM_USERNAME'" "'$WUM_PASSWORD'" "'$TEST_MODE'" 
 
-log_info "Executing /opt/testgrid/workspace/provision_db_${PRODUCT_NAME}.sh on remote Instance"
-ssh -v -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ${keyFileLocation} $instanceUser@${WSO2InstanceName} "cd /opt/testgrid/workspace && sudo bash /opt/testgrid/workspace/provision_db_${PRODUCT_NAME}.sh"
+log_info "Executing /opt/testgrid/workspace/provision_db_${PRODUCT_NAME}.sh on remote Instance for group '${productTestGroup}' (suffix '${DB_SUFFIX}')"
+ssh -v -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ${keyFileLocation} $instanceUser@${WSO2InstanceName} "cd /opt/testgrid/workspace && sudo bash /opt/testgrid/workspace/provision_db_${PRODUCT_NAME}.sh ${DB_SUFFIX} ${GROUP_NUM}"
 
 # Setting the test status as failed
 MVNSTATE=1

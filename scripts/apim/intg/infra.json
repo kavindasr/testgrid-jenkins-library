@@ -43,13 +43,13 @@
 			"database": [
 				{
 					"name": "WSO2AM_COMMON_DB",
-					"url": "jdbc:db2://DB_HOST:50000/SHRD_DB",
+					"url": "jdbc:db2://DB_HOST:50000/SHRD_CF_GD",
 					"username": "DB_USERNAME",
 					"password": "DB_PASSWORD"
 				},
 				{
 					"name": "WSO2AM_APIMGT_DB",
-					"url": "jdbc:db2://DB_HOST:50000/APIM_DB",
+					"url": "jdbc:db2://DB_HOST:50000/APIM_CF_GD",
 					"username": "DB_USERNAME",
 					"password": "DB_PASSWORD"
 				}
@@ -64,13 +64,13 @@
             [
                 {
 					"name": "WSO2AM_COMMON_DB",
-                    "url": "jdbc:mysql://DB_HOST:3306/WSO2AM_COMMON_DB?autoReconnect=true&amp;useSSL=false",
+                    "url": "jdbc:mysql://DB_HOST:3306/WSO2AM_COMMON_DB_CF_GROUP?autoReconnect=true&amp;useSSL=false",
 					"username": "DB_USERNAME",
 					"password": "DB_PASSWORD"
 				},
 				{
 					"name": "WSO2AM_APIMGT_DB",
-					"url": "jdbc:mysql://DB_HOST:3306/WSO2AM_APIMGT_DB?autoReconnect=true&amp;useSSL=false",
+					"url": "jdbc:mysql://DB_HOST:3306/WSO2AM_APIMGT_DB_CF_GROUP?autoReconnect=true&amp;useSSL=false",
 					"username": "DB_USERNAME",
 					"password": "DB_PASSWORD"
 				}
@@ -85,13 +85,13 @@
             [
                 {
 					"name": "WSO2AM_COMMON_DB",
-					"url": "jdbc:postgresql://DB_HOST:5432/WSO2AM_COMMON_DB",
+					"url": "jdbc:postgresql://DB_HOST:5432/WSO2AM_COMMON_DB_CF_GROUP",
 					"username": "DB_USERNAME",
 					"password": "DB_PASSWORD"
 				},
 				{
 					"name": "WSO2AM_APIMGT_DB",
-					"url": "jdbc:postgresql://DB_HOST:5432/WSO2AM_APIMGT_DB",
+					"url": "jdbc:postgresql://DB_HOST:5432/WSO2AM_APIMGT_DB_CF_GROUP",
 					"username": "DB_USERNAME",
 					"password": "DB_PASSWORD"
 				}
@@ -106,13 +106,13 @@
             [
                 {
 					"name": "WSO2AM_COMMON_DB",
-					"url": "jdbc:sqlserver://DB_HOST:1433;databaseName=WSO2AM_COMMON_DB;SendStringParametersAsUnicode=false;encrypt=false",
+					"url": "jdbc:sqlserver://DB_HOST:1433;databaseName=WSO2AM_COMMON_DB_CF_GROUP;SendStringParametersAsUnicode=false;encrypt=false",
 					"username": "DB_USERNAME",
 					"password": "DB_PASSWORD"
 				},
 				{
 					"name": "WSO2AM_APIMGT_DB",
-					"url": "jdbc:sqlserver://DB_HOST:1433;databaseName=WSO2AM_APIMGT_DB;SendStringParametersAsUnicode=false;encrypt=false",
+					"url": "jdbc:sqlserver://DB_HOST:1433;databaseName=WSO2AM_APIMGT_DB_CF_GROUP;SendStringParametersAsUnicode=false;encrypt=false",
 					"username": "DB_USERNAME",
 					"password": "DB_PASSWORD"
 				}
@@ -128,13 +128,13 @@
                 {
 					"name": "WSO2AM_COMMON_DB",
 					"url": "jdbc:oracle:thin:@DB_HOST:1521/WSO2AMDB",
-					"username": "WSO2AM_COMMON_DB",
+					"username": "WSO2AM_COMMON_DB_CF_GROUP",
 					"password": "DB_PASSWORD"
 				},
 				{
 					"name": "WSO2AM_APIMGT_DB",
 					"url": "jdbc:oracle:thin:@DB_HOST:1521/WSO2AMDB",
-					"username": "WSO2AM_APIMGT_DB",
+					"username": "WSO2AM_APIMGT_DB_CF_GROUP",
 					"password": "DB_PASSWORD"
 				}
 			],

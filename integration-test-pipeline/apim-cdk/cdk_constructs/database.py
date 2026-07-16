@@ -79,6 +79,17 @@ class DatabaseConstruct(Construct):
     ) -> None:
         super().__init__(scope, construct_id)
 
+        if not db_choices:
+            raise ValueError("db_choices must contain at least one entry.")
+
+        duplicates = {c for c in db_choices if db_choices.count(c) > 1}
+        if duplicates:
+            raise ValueError(
+                f"db_choices has duplicate entries {sorted(duplicates)}; each "
+                "entry becomes its own RDS instance with a name derived from "
+                "the choice string, so duplicates would collide on construct ID."
+            )
+
         self.security_group = ec2.SecurityGroup(
             self,
             "SecurityGroup",

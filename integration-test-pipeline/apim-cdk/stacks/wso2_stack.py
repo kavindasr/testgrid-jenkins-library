@@ -52,7 +52,7 @@ class Wso2Stack(Stack):
             "Database",
             vpc=network.vpc,
             source_security_group=compute.security_group,
-            db_choices=db_choices or ["MySQL-5.7"],
+            db_choices=db_choices if db_choices is not None else ["MySQL-5.7"],
             instance_type=db_instance_type,
             db_name=db_name,
             username=db_username,
@@ -68,10 +68,7 @@ class Wso2Stack(Stack):
             instance_count=ec2_instance_count,
             instance_type=instance_type,
             operating_system=operating_system,
-            db_instance=primary_db.instance,
-            db_engine_key=primary_db.engine_key,
-            db_engine_version=primary_db.engine_version,
-            db_name=primary_db.db_name,
+            db=primary_db,
             jdk=jdk,
             maven_version=maven_version,
             custom_user_data=custom_user_data,
@@ -89,6 +86,20 @@ class Wso2Stack(Stack):
                 value=f"https://{instance.instance_public_dns_name}:9443/carbon",
             )
             CfnOutput(self, f"WSO2PublicIP{i}", value=instance.instance_public_ip)
+
+        # Matches the source template's DatabaseHost/DatabasePort outputs,
+        # one pair per provisioned database.
+        for db in database.databases:
+            CfnOutput(
+                self,
+                f"DatabaseHost{db.instance.node.id}",
+                value=db.instance.db_instance_endpoint_address,
+            )
+            CfnOutput(
+                self,
+                f"DatabasePort{db.instance.node.id}",
+                value=db.instance.db_instance_endpoint_port,
+            )
 
         self.vpc = network.vpc
         self.instances = instances
